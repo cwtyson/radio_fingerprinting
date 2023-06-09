@@ -4,6 +4,6 @@
 .Ruserdata
 
 
-# Ignore large raw detections file
+# Ignore large files
 /data/detections/raw_dets.csv
-
+/data/outputs/altered_node_test_percentages.csv
