@@ -82,7 +82,7 @@ for (cp_f in unique(dets_w_tag$cp)){
                                        test_fgp = x_ts, 
                                        test_pos = y_ts)
     
-    ## Get error for calibraiton point
+    ## Get error for calibration point
     est_cp_f_df <- data.frame(tag = tag_f,
                               cp = cp_f,
                               error = knnEstimation$errors,
