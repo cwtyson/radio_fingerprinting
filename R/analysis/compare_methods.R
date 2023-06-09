@@ -72,7 +72,7 @@ ggplot() +
 
 #  Error with varying amounts of node test data for RF method -------------
 
-## Reduced nodes in RF method
+## Reduced nodes in RF method: file size exceeds GitHub maximum and must be downloaded separately from Dryad
 rf_nodes <- readr::read_csv("./data/outputs/altered_node_test_percentages.csv")
 
 ## Detections
