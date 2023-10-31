@@ -26,7 +26,7 @@ dets <- dets %>%
 field_log_intervals <- readr::read_csv() 
 
 ## Reformat
-field_log_intervals <- field_log_intervals%>% 
+field_log_intervals <- field_log_intervals %>% 
   janitor::clean_names() %>% 
   transmute(point,
             pole,

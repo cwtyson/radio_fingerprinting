@@ -5,9 +5,130 @@ library(tidyverse)
 library(ggpubr)
 library(wesanderson)
 
+# Combine outputs and process data #######
+
+## KNN
+knn_est <- readr::read_csv("./manuscript_files/results/fingerprinting_estimates.csv") %>% 
+  dplyr::select(tag,
+                cp,
+                error,
+                x_est,
+                y_est) %>% 
+  dplyr::mutate(est = "Fingerprinting")
+
+## Detections
+knn_dets <- readr::read_csv("./manuscript_files/data/fingerprint_detections.csv") %>% 
+  dplyr::select(tag,
+                cp,
+                node = receiver) %>% 
+  dplyr::distinct(cp,
+                  node)
+
+## Nodes
+nodes <- readr::read_csv("./manuscript_files/data/nodes.csv")
+
+## Join node gp to knn dets
+knn_dets_j <- knn_dets %>% 
+  left_join(nodes, by = "node") %>% 
+  select(cp,
+         grid_point)
+
+## Cp and closest node
+node_dist <- readr::read_csv("./manuscript_files/data/nodes_dist.csv") %>% 
+  dplyr::select(cp,
+                nearest_grid_point = grid_point)
+
+
+## Join node gp to knn dets
+knn_dets_j <- knn_dets %>% 
+  left_join(nodes, by = "node") %>% 
+  select(cp,
+         grid_point)
+
+## Join
+knn_est_j <- knn_est %>% 
+  left_join(node_dist,
+            by = "cp") %>% 
+  left_join(knn_dets_j,
+            by = "cp") %>% 
+  
+  ## Check if neareset was detected
+  group_by(cp) %>%
+  mutate(nearest_gp_det = any(grid_point %in% nearest_grid_point)) %>% 
+  # na.omit() %>%
+  dplyr::distinct(tag,
+                  cp, .keep_all = T) %>% 
+  dplyr::select(-nearest_grid_point,
+                -grid_point)
+
+
+## Multlilateration estimates
+ml_est <- readr::read_csv("./manuscript_files/results/multilateration_estimates.csv") %>% 
+  dplyr::select(tag,
+                cp,
+                error,
+                x_est,
+                y_est) %>% 
+  dplyr::mutate(est = "Multilateration")
+
+## Detections for ml
+ml_dets <- readr::read_csv("./manuscript_files/data/fingerprint_detections.csv")  %>% 
+  dplyr::select(tag,
+                cp,
+                node = receiver) %>% 
+  dplyr::distinct(cp,
+                  node)
+
+
+## Join node gp to ml_dets dets
+ml_dets_j <- ml_dets %>% 
+  left_join(nodes, by = "node") %>% 
+  select(cp,
+         grid_point)
+
+## Join
+ml_dets_j <- ml_est %>% 
+  left_join(node_dist,
+            by = "cp") %>% 
+  left_join(ml_dets_j,
+            by = "cp") %>% 
+  ## Check if neareset was detected
+  group_by(cp) %>%
+  mutate(nearest_gp_det = any(grid_point %in% nearest_grid_point)) %>% 
+  na.omit() %>% 
+  dplyr::distinct(tag,
+                  cp, .keep_all = T) %>% 
+  dplyr::select(-nearest_grid_point,
+                -grid_point)
+
+
+## Combine
+est_all <- bind_rows(knn_est_j,
+                     ml_dets_j)
+
+## Add distance to nearest node and to center. Add habitat.
+node_dist <- readr::read_csv("./manuscript_files/data/nodes_dist.csv")
+center_dist <- readr::read_csv("./manuscript_files/data/center_dist.csv")
+
+## Habitat classifications
+habitats <- readr::read_csv("./manuscript_files/data/habitats.csv")
+
+## Combine
+est_all_j <- est_all %>% 
+  left_join(node_dist, by = "cp") %>% 
+  left_join(center_dist, by = "cp") %>% 
+  left_join(habitats, by = "cp")
+  
+
+## Save
+readr::write_csv(est_all_j,
+                 "./manuscript_files/results/combined_estimates.csv")
+
+rm(list=ls())
+
 # Summary #######
 
-est_all <- readr::read_csv("./manuscript_files/data/combined_location_estimates.csv")
+est_all <- readr::read_csv("./manuscript_files/results/combined_estimates.csv")
 
 ## Overall
 median(est_all[est_all$est == "Multilateration",]$error)
@@ -82,7 +203,7 @@ ggplot() +
   scale_y_continuous(breaks = seq(0,400, by = 50), limits = c(0,400)) 
 
 ## Save plot
-ggsave("./figures/fig2.jpg",
+ggsave("./manuscript_files/figures/fig2.jpg",
        device = "jpg",
        units = "px",
        width = 2304,
@@ -91,7 +212,7 @@ ggsave("./figures/fig2.jpg",
 rm(list=ls())
 
 # Figure 3. Distance from the nearest node / center of the grid #####
-est_all <- readr::read_csv("./manuscript_files/data/combined_location_estimates.csv") 
+est_all <- readr::read_csv("./manuscript_files/results/combined_estimates.csv") 
 
 ## Plot
 est_all  %>% 
@@ -121,7 +242,7 @@ est_all  %>%
   theme(legend.position = "none")
 
 ## Save plot
-ggsave("./figures/fig3.jpg",
+ggsave("./manuscript_files/figures/fig3.jpg",
        device = "jpg",
        units = "px",
        width = 2304,
@@ -132,7 +253,7 @@ rm(list=ls())
 # Figure 4. Error relative to habitat ########
 
 ## Read in combined estimates
-est_all <- readr::read_csv("./manuscript_files/data/combined_location_estimates.csv")
+est_all <- readr::read_csv("./manuscript_files/results/combined_estimates.csv")
 
 ggplot(est_all %>% 
          filter(habitat %in% c(1,2,3,4,5))) +
@@ -152,7 +273,7 @@ ggplot(est_all %>%
 
 
 ## Save plot
-ggsave("./figures/fig4.jpg",
+ggsave("./manuscript_files/figures/fig4.jpg",
        device = "jpg",
        units = "px",
        width = 2304,
@@ -164,10 +285,10 @@ rm(list=ls())
 #	Figure 5. Error when half of the receivers are used  #######
 
 ## Altered nodes
-alt_node_spacing <- readr::read_csv("./manuscript_files/data/altered_node_spacing.csv")
+alt_node_spacing <- readr::read_csv("./manuscript_files/results/altered_node_spacing.csv")
 
 ## All nodes
-all_est <- readr::read_csv("./manuscript_files/data/combined_location_estimates.csv") %>% 
+all_est <- readr::read_csv("./manuscript_files/results/combined_estimates.csv") %>% 
   transmute(est_method = est,
             error,
             nodes = "All") 
@@ -198,7 +319,7 @@ node_spacing %>%
   scale_y_continuous(breaks = seq(0,400, by = 50), limits = c(0,400)) 
 
 ## Save plot
-ggsave("./figures/fig5.jpg",
+ggsave("./manuscript_files/figures/fig5.jpg",
        device = "jpg",
        units = "px",
        width = 2304,
@@ -209,10 +330,10 @@ rm(list=ls())
 # Figure 6. Error with varying amounts of node test data for RF method ##### 
 
 ## Reduced nodes in RF method
-rf_nodes <- readr::read_csv( "./manuscript_files/data/altered_node_test_percentages.csv")
+rf_nodes <- readr::read_csv( "./manuscript_files/results/altered_node_test_percentages.csv")
 
 ## Detections
-est_all <- readr::read_csv("./manuscript_files/data/combined_location_estimates.csv") 
+est_all <- readr::read_csv("./manuscript_files/results/combined_estimates.csv") 
 
 ## Calculate median error for multilateration
 est_all_sum <- est_all %>% 
@@ -238,7 +359,7 @@ rf_nodes_plot <- ggplot(rf_nodes) +
   scale_x_reverse() 
 
 ## Save plot
-ggsave("./figures/fig6.jpg",
+ggsave("./manuscript_files/figures/fig6.jpg",
        device = "jpg",
        units = "px",
        width = 2304,
@@ -249,7 +370,7 @@ rm(list=ls())
 # Figure 7. Reduced time at each calibration point #########
 
 ## Check results
-alt_cp_time <- readr::read_csv("./manuscript_files/data/altered_calibration_point_times.csv") %>% 
+alt_cp_time <- readr::read_csv("./manuscript_files/results/altered_calibration_point_times.csv") %>% 
   mutate(habitat = as.factor(habitat))
 
 ## Join habitat types and plot detections by time
@@ -282,7 +403,7 @@ alt_cp_time <- readr::read_csv("./manuscript_files/data/altered_calibration_poin
     theme_classic(base_size = 16))
 
 ggarrange(fig_rt_a,fig_rt_b, common.legend = TRUE, legend = "bottom",labels = c("A","B"))
-ggsave("./figures/fig7.jpg",
+ggsave("./manuscript_files/figures/fig7.jpg",
        device = "jpg",
        units = "px",
        width = 2304,
@@ -293,7 +414,7 @@ rm(list=ls())
 # Supplemental: ML comparisons #######
 
 ## Read in errors from the different methods
-ml_methods <- readr::read_csv("./manuscript_files/data/ml_comparison.csv")
+ml_methods <- readr::read_csv("./manuscript_files/results/ml_comparison.csv")
 
 ## Summarise
 error_sum <- ml_methods %>% 
@@ -327,7 +448,7 @@ ggplot(ml_methods) +
        x = "Localization method") +
   theme(axis.text.x = element_text(angle = 45, vjust = 0.8, hjust = 0.8))
 
-ggsave("./figures/figS1",
+ggsave("./manuscript_files/figures/figS1",
        device = "jpg",
        units = "px",
        width = 2304,
