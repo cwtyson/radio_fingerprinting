@@ -448,7 +448,7 @@ ggplot(ml_methods) +
        x = "Localization method") +
   theme(axis.text.x = element_text(angle = 45, vjust = 0.8, hjust = 0.8))
 
-ggsave("./manuscript_files/figures/figS1",
+ggsave("./manuscript_files/figures/figS1.jpg",
        device = "jpg",
        units = "px",
        width = 2304,
