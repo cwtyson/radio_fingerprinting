@@ -8,6 +8,8 @@ library(caret)
 ## Plotting values
 color_pal <- wesanderson::wes_palette("Zissou1", 100, type = "continuous")
 
+NA_value = 150
+
 ## Process detection data for random forests ######
 
 ## Read in detections
@@ -15,32 +17,22 @@ dets <- readr::read_csv("./data/detections/field_cal_dets.csv")
 
 # Process for random forests
 dets_w <- dets %>%
-  dplyr::rename(cp = calibration_point) %>%
   dplyr::group_by(cp, tag, node) %>%
-  dplyr::summarise(mean_RSSI = mean(RSSI)) %>%
+  dplyr::summarise(mean_RSSI = mean(rssi)) %>%
   tidyr::pivot_wider(names_from = "node",
                      values_from = "mean_RSSI",
                      names_prefix = "node_") %>%
   dplyr::filter(!(grepl("WNC", cp))) %>% 
   dplyr::ungroup(cp) 
 
-## Read in calibration locations
-cal_pts <- sf::read_sf("data/locations/WES_calibration_points.KML") %>% 
-  sf::st_transform(28992)
-
-cal_pt_location_df <- cal_pts %>% 
-  sf::st_coordinates() %>% 
-  as.data.frame() %>% 
-  dplyr::mutate(calibration_point = cal_pts$Name) %>% 
-  dplyr::select(cp = calibration_point,
-                x = X,
-                y = Y)
+## Reformat calibration point locations
+cal_pt_location_df <- readr::read_csv("./manuscript_files/data/fingerprint_coordinates.csv")
 
 ## Join and add NA values
 dets_w <- dets_w %>% 
   dplyr::left_join(cal_pt_location_df,
                    by = "cp") %>% 
-  dplyr::mutate_at(vars(contains("node_")), ~replace(., is.na(.), -115)) %>% 
+  dplyr::mutate_at(vars(contains("node_")), ~replace(., is.na(.), NA_value)) %>% 
   ungroup() 
 
 ## Get sample
@@ -175,6 +167,8 @@ for (cp_f in unique(dets_w$cp)){
                         est_cp_f_df)
   }
 }
+
+median(output$error)
 
 ## Save outputs
 readr::write_csv(output,
