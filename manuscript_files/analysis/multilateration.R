@@ -32,7 +32,7 @@ dets_sum <- dets %>%
 cp_max_node <- dets_sum %>% 
   
   ## Get max RSSI values within each window
-  dplyr::group_by(cp) %>%
+  dplyr::group_by(cp, tag) %>%
   dplyr::mutate(max_RSSI = max(mean_RSSI)) %>%
   dplyr::filter(mean_RSSI == max_RSSI) %>% 
   dplyr::distinct(cp,
@@ -54,47 +54,56 @@ for(cp_f in unique(cp_max_node$cp)){
   # cp_f = unique(cp_max_node$cp)[1]
   # cp_f = "Z_13"
   
-  ## Get grid_points with detections
-  cp_gps <- dets_sum %>% 
-    dplyr::filter(cp == cp_f) %>%
-    dplyr::pull(node) %>% 
-    unique() 
+  ## Tags
+  tags <- cp_max_node[cp_max_node$cp == cp_f,]$tag
   
-  ## If possible:
-  if( length(cp_gps) > 0 ){
+  ## For each tag 
+  for(tag_f in tags){
     
-    ## Filter node pts based on those with detections
-    node_pts_df <- nodes_df %>% 
-      dplyr::filter(node %in% cp_gps)
+    ## Get grid_points with detections
+    cp_gps <- dets_sum %>% 
+      dplyr::filter(cp == cp_f & tag == tag_f) %>%
+      dplyr::pull(node) %>% 
+      unique() 
     
-    ## Get distance between nodes with detections during the point
-    n_dist <- raster::pointDistance(node_pts_df[,c("x", "y")], 
-                                    node_pts_df[,c("x", "y")], 
-                                    lonlat = F,
-                                    allpairs = T)
+    ## If possible:
+    if( length(cp_gps) > 0 ){
+      
+      ## Filter node pts based on those with detections
+      node_pts_df <- nodes_df %>% 
+        dplyr::filter(node %in% cp_gps)
+      
+      ## Get distance between nodes with detections during the point
+      n_dist <- raster::pointDistance(node_pts_df[,c("x", "y")], 
+                                      node_pts_df[,c("x", "y")], 
+                                      lonlat = F,
+                                      allpairs = T)
+      
+      # Make matrix into a dataframe with a row for NodeId
+      n_dist_df <- data.frame(n_dist)
+      colnames(n_dist_df) <- node_pts_df$node
+      n_dist_df$node <- colnames(n_dist_df)
+    }
     
-    # Make matrix into a dataframe with a row for NodeId
-    n_dist_df <- data.frame(n_dist)
-    colnames(n_dist_df) <- node_pts_df$node
-    n_dist_df$node <- colnames(n_dist_df)
+    ## Keep nodes within specified distance filter
+    nodes_dist_f <- n_dist_df %>%
+      dplyr::filter(node == cp_max_node[cp_max_node$cp == cp_f & cp_max_node$tag == tag_f,]$node) %>% 
+      tidyr::gather(key = "node", 
+                    value = "distance") %>%
+      dplyr::filter(distance <= dist) 
+    
+    ## Filter calibration detections based on nodes within distance filter
+    dt_r_dets_f <- dets_sum %>% 
+      na.omit() %>% 
+      dplyr::filter(node %in% nodes_dist_f$node,
+                    cp == cp_f,
+                    tag == tag_f) 
+    
+    ## Bind to other cp dets
+    dets_all <- dplyr::bind_rows(dt_r_dets_f,
+                                 dets_all)
+    
   }
-  
-  ## Keep nodes within specified distance filter
-  nodes_dist_f <- n_dist_df %>%
-    dplyr::filter(node == cp_max_node[cp_max_node$cp == cp_f,]$node) %>% 
-    tidyr::gather(key = "node", 
-                  value = "distance") %>%
-    dplyr::filter(distance <= dist) 
-  
-  ## Filter calibration detections based on nodes within distance filter
-  dt_r_dets_f <- dets_sum %>% 
-    na.omit() %>% 
-    dplyr::filter(node %in% nodes_dist_f$node,
-                  cp == cp_f) 
-  
-  ## Bind to other cp dets
-  dets_all <- dplyr::bind_rows(dt_r_dets_f,
-                               dets_all)
   
 }
 
@@ -151,24 +160,13 @@ proxModel <- ipfProximity(bpos = node_pts_f,
                           alpha = mod_alpha, 
                           rssirange = c(min_RSSI, 
                                         max_RSSI), 
-                          norssi = -125, 
+                          norssi = -126, 
                           wapPow1 = mod_R0)
 
-
+## Apply
 proxEstimation <- ipfEstimate(ipfmodel = proxModel, 
                               test_fgp = fingerprints, 
                               test_pos = positions)
-
-## Summarise RSSI values
-rssi_sum <- cal_dets_w %>% 
-  dplyr::filter(nodes >= 3) %>% 
-  select(cp, matches("[0-9*]")) %>% 
-  mutate(mean_RSSI =  round(rowMeans(across(where(is.numeric)), na.rm = TRUE),0)) %>% 
-  rowwise() %>% 
-  mutate(max_RSSI = max(across(matches("[0-9*]")), na.rm = TRUE)) %>% 
-  select(cp,
-         mean_RSSI,
-         max_RSSI)
 
 
 ## Get estimated values
@@ -184,6 +182,7 @@ ml_est <- data.frame(tag = cal_dets_w %>%
                      x_est = proxEstimation$location$x,
                      y_est = proxEstimation$location$y)
 
+median(ml_est$error)
 
 ## Save
 readr::write_csv(ml_est,
