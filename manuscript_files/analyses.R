@@ -50,7 +50,8 @@ knn_est_j <- knn_est %>%
   left_join(node_dist,
             by = "cp") %>% 
   left_join(knn_dets_j,
-            by = "cp") %>% 
+            by = "cp",
+            relationship = "many-to-many") %>% 
   
   ## Check if neareset was detected
   group_by(cp) %>%
@@ -70,6 +71,8 @@ ml_est <- readr::read_csv("./manuscript_files/results/multilateration_estimates.
                 x_est,
                 y_est) %>% 
   dplyr::mutate(est = "Multilateration")
+
+median(ml_est$error)
 
 ## Detections for ml
 ml_dets <- readr::read_csv("./manuscript_files/data/fingerprint_detections.csv")  %>% 
@@ -91,13 +94,15 @@ ml_dets_j <- ml_est %>%
   left_join(node_dist,
             by = "cp") %>% 
   left_join(ml_dets_j,
-            by = "cp") %>% 
+            by = "cp",
+            relationship = "many-to-many") %>% 
   ## Check if neareset was detected
   group_by(cp) %>%
   mutate(nearest_gp_det = any(grid_point %in% nearest_grid_point)) %>% 
   na.omit() %>% 
   dplyr::distinct(tag,
-                  cp, .keep_all = T) %>% 
+                  cp, 
+                  .keep_all = T) %>% 
   dplyr::select(-nearest_grid_point,
                 -grid_point)
 
@@ -118,7 +123,7 @@ est_all_j <- est_all %>%
   left_join(node_dist, by = "cp") %>% 
   left_join(center_dist, by = "cp") %>% 
   left_join(habitats, by = "cp")
-  
+
 
 ## Save
 readr::write_csv(est_all_j,
@@ -136,19 +141,19 @@ length(est_all[est_all$est == "Multilateration",]$error)
 median(est_all[est_all$est == "Fingerprinting",]$error)
 length(est_all[est_all$est == "Fingerprinting",]$error)
 
-# Figure 2. Error when not detected by nearest node #####
+## Tw 
+wilcox.test(est_all[est_all$est == "Multilateration",]$error,
+            est_all[est_all$est == "Fingerprinting",]$error)
 
-## Not detected
-median(est_all[est_all$est == "Fingerprinting" & est_all$nearest_gp_det == FALSE,]$error)
-nrow(est_all[est_all$est == "Fingerprinting" & est_all$nearest_gp_det == FALSE,])
-median(est_all[est_all$est == "Multilateration" & est_all$nearest_gp_det == FALSE,]$error)
-nrow(est_all[est_all$est == "Multilateration" & est_all$nearest_gp_det == FALSE,])
+
+# Figure 2. Error when not detected by nearest node #####
 
 ## Detected
 median(est_all[est_all$est == "Fingerprinting" & est_all$nearest_gp_det == TRUE,]$error)
 length(est_all[est_all$est == "Fingerprinting" & est_all$nearest_gp_det == TRUE,]$error)
 median(est_all[est_all$est == "Multilateration" & est_all$nearest_gp_det == TRUE,]$error)
 length(est_all[est_all$est == "Multilateration" & est_all$nearest_gp_det == TRUE,]$error)
+
 
 ## Fingerprinting 
 wilcox.test(est_all[est_all$est == "Fingerprinting" & est_all$nearest_gp_det == TRUE,]$error,
@@ -162,17 +167,23 @@ wilcox.test(est_all[est_all$est == "Multilateration" & est_all$nearest_gp_det ==
 fw_true <- wilcox.test(est_all[est_all$est == "Multilateration" & est_all$nearest_gp_det == TRUE,]$error,
                        est_all[est_all$est == "Fingerprinting" & est_all$nearest_gp_det == TRUE,]$error)
 
-## Z value
-qnorm(fw_true$p.value/2)
+## Fingerprinting to Multilateration - detected
+fw_true <- wilcox.test(est_all[est_all$est == "Multilateration" & est_all$nearest_gp_det == FALSE,]$error,
+                       est_all[est_all$est == "Fingerprinting" & est_all$nearest_gp_det == TRUE,]$error)
 
-## P value
-fw_true$p.value
+
+
+## Not detected
+median(est_all[est_all$est == "Fingerprinting" & est_all$nearest_gp_det == FALSE,]$error)
+nrow(est_all[est_all$est == "Fingerprinting" & est_all$nearest_gp_det == FALSE,])
+median(est_all[est_all$est == "Multilateration" & est_all$nearest_gp_det == FALSE,]$error)
+nrow(est_all[est_all$est == "Multilateration" & est_all$nearest_gp_det == FALSE,])
 
 ## Fingerprinting to Multilateration - not detected
 fw_false <- wilcox.test(est_all[est_all$est == "Multilateration" & est_all$nearest_gp_det == FALSE,]$error,
                         est_all[est_all$est == "Fingerprinting" & est_all$nearest_gp_det == FALSE,]$error)
 
-## Z value
+## W value
 qnorm(fw_false$p.value/2)
 
 ## P value
@@ -214,6 +225,17 @@ rm(list=ls())
 # Figure 3. Distance from the nearest node / center of the grid #####
 est_all <- readr::read_csv("./manuscript_files/results/combined_estimates.csv") 
 
+## Summarise relationship between distance and error
+dist_sum <- est_all %>% 
+  filter(nearest_gp_det == TRUE) %>% 
+  filter(distance_gp < 60) %>% 
+  mutate(dist_break = cut(distance_gp, breaks = 10)) %>% 
+  group_by(est,dist_break) %>% 
+  summarise(median = median(error))
+
+
+
+
 ## Plot
 est_all  %>% 
   
@@ -232,10 +254,10 @@ est_all  %>%
   stat_smooth(method = "lm",
               linetype = 1,
               size = 1,
+              level = 0.95,
               color = wesanderson::wes_palette("Zissou1", 100, type = "continuous")[90]) +
   facet_grid(est~metric,
-             scales = "free") +
-  
+             scales = "free_x") +
   labs(x = "Distance (m)",
        y = "Error (m)") +
   theme_classic(base_size = 16) +
@@ -254,6 +276,11 @@ rm(list=ls())
 
 ## Read in combined estimates
 est_all <- readr::read_csv("./manuscript_files/results/combined_estimates.csv")
+
+hab_sum <- est_all %>% 
+  filter(habitat %in% c(1,2,3,4,5)) %>% 
+  group_by(est,habitat) %>% 
+  summarise(median = median(error))
 
 ggplot(est_all %>% 
          filter(habitat %in% c(1,2,3,4,5))) +
@@ -279,7 +306,6 @@ ggsave("./manuscript_files/figures/fig4.jpg",
        width = 2304,
        height = 1529)
 
-
 rm(list=ls())
 
 #	Figure 5. Error when half of the receivers are used  #######
@@ -296,6 +322,10 @@ all_est <- readr::read_csv("./manuscript_files/results/combined_estimates.csv") 
 ## Conbine
 node_spacing <- dplyr::bind_rows(alt_node_spacing,
                                  all_est) 
+
+node_spacing_sum <-node_spacing %>% 
+  group_by(est_method, nodes) %>% 
+  summarise(median = median(error))
 
 ## Plot
 node_spacing %>%
@@ -342,7 +372,7 @@ est_all_sum <- est_all %>%
   filter(est == "Multilateration")
 
 ## Plot 
-rf_nodes_plot <- ggplot(rf_nodes) +
+ggplot(rf_nodes) +
   geom_hline(yintercept = est_all_sum[est_all_sum$nearest_gp_det == "TRUE",]$median, linetype = 5) +
   geom_hline(yintercept = est_all_sum[est_all_sum$nearest_gp_det == "FALSE",]$median, linetype = 2) +
   geom_jitter(aes(x = gp_perc,
@@ -354,9 +384,10 @@ rf_nodes_plot <- ggplot(rf_nodes) +
                   y = median),
               color = wesanderson::wes_palette("Zissou1", 100, type = "continuous")[90]) +
   labs(x = "Proportion of nodes in test data", y = "Median error (m)") +
-  theme_classic(base_size = 16) +
+  theme_classic(base_size = 32) +
   scale_y_continuous(breaks = seq(0,450, by = 50), limits = c(0,450)) +
   scale_x_reverse() 
+
 
 ## Save plot
 ggsave("./manuscript_files/figures/fig6.jpg",
@@ -364,6 +395,7 @@ ggsave("./manuscript_files/figures/fig6.jpg",
        units = "px",
        width = 2304,
        height = 1529)
+
 
 rm(list=ls())
 
@@ -387,8 +419,8 @@ alt_cp_time <- readr::read_csv("./manuscript_files/results/altered_calibration_p
     labs(x = "Time (seconds) at test point ", 
          y = "Detections per tag") +
     scale_color_manual(name = "Habitat score", values = wesanderson::wes_palette("Zissou1", 100, type = "continuous")[seq(1,100, length.out = 5)]) +
-    theme_minimal()  +
-    theme_classic(base_size = 16) )
+    theme_classic()  +
+    theme_classic(base_size = 32) )
 
 ## Plot error by time
 (fig_rt_b <-  ggplot(alt_cp_time) +
@@ -400,7 +432,7 @@ alt_cp_time <- readr::read_csv("./manuscript_files/results/altered_calibration_p
     scale_x_continuous(breaks = seq(5,60, by =5)) +
     labs(x = "Time (seconds) at test point ", y = "Median error (m)") +
     scale_color_manual(name = "Habitat score", values = wesanderson::wes_palette("Zissou1", 100, type = "continuous")[seq(1,100, length.out = 5)]) +
-    theme_classic(base_size = 16))
+    theme_classic(base_size = 32))
 
 ggarrange(fig_rt_a,fig_rt_b, common.legend = TRUE, legend = "bottom",labels = c("A","B"))
 ggsave("./manuscript_files/figures/fig7.jpg",
@@ -408,6 +440,14 @@ ggsave("./manuscript_files/figures/fig7.jpg",
        units = "px",
        width = 2304,
        height = 1529)
+
+ggsave("/Users/tyson/Documents/academia/institutions/WUR/presentations/BHE/Jan2024/reduced_time.jpg",
+       width = 7,
+       height = 7, 
+       dpi=500,
+       scale = 2)
+
+
 
 rm(list=ls())
 
