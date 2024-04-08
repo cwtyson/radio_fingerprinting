@@ -9,6 +9,7 @@
 /data/outputs/altered_node_test_percentages.csv
 /data/results/altered_node_test_percentages.csv
 /data/results/altered_node_test_data.csv
+/manuscript_files/results/altered_node_test_data.csv
 
 # Ignore archived files
 /archive/
