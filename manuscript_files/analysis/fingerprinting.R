@@ -5,8 +5,6 @@ library(tidyverse)
 
 ## Process detection data for KNN ######
 
-NA_value = -116
-
 ## Read in detections
 dets <- readr::read_csv("./manuscript_files/data/fingerprint_detections.csv") %>% 
   rename(node = receiver)
@@ -33,7 +31,7 @@ nodes_sum <- dets_w_tag %>%
 dets_w_tag <- dets_w_tag %>% 
   dplyr::left_join(cal_pt_location_df,
                    by = "cp") %>% 
-  dplyr::mutate_at(vars(contains("node_")), ~replace(., is.na(.), NA_value))
+  dplyr::mutate_at(vars(contains("node_")), ~replace(., is.na(.), -116))
 
 ## Empty data frame for results
 knn_est <- data.frame()
@@ -98,7 +96,6 @@ for (cp_f in unique(dets_w_tag$cp)){
     
   }
 }
-
 
 median(knn_est$error)
 
