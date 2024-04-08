@@ -359,8 +359,16 @@ rm(list=ls())
 
 # Figure 6. Error with varying amounts of node test data for RF method ##### 
 
-## Reduced nodes in RF method
-rf_nodes <- readr::read_csv( "./manuscript_files/results/altered_node_test_percentages.csv")
+# ## Reduced nodes in RF method
+# rf_nodes <- readr::read_csv("./manuscript_files/results/altered_node_test_data.csv")
+# 
+# rf_nodes_sum <- rf_nodes %>% 
+#   group_by(gp_perc, rep) %>% 
+#   summarise(median = median(error))
+# 
+# write_csv(rf_nodes_sum, "./manuscript_files/results/altered_node_test_data_summary.csv")
+
+rf_nodes <- readr::read_csv("./manuscript_files/results/altered_node_test_data_summary.csv")
 
 ## Detections
 est_all <- readr::read_csv("./manuscript_files/results/combined_estimates.csv") 
@@ -372,7 +380,8 @@ est_all_sum <- est_all %>%
   filter(est == "Multilateration")
 
 ## Plot 
-ggplot(rf_nodes) +
+ggplot(rf_nodes %>% 
+         filter(gp_perc < 1)) +
   geom_hline(yintercept = est_all_sum[est_all_sum$nearest_gp_det == "TRUE",]$median, linetype = 5) +
   geom_hline(yintercept = est_all_sum[est_all_sum$nearest_gp_det == "FALSE",]$median, linetype = 2) +
   geom_jitter(aes(x = gp_perc,
@@ -380,11 +389,20 @@ ggplot(rf_nodes) +
               height = 0,
               width = 0.01,
               alpha = 0.6) +
+  geom_jitter(aes(x = gp_perc,
+                  y = median),
+              height = 0,
+              width = 0.01,
+              alpha = 0.6,
+              data = rf_nodes_sum %>% 
+                filter(gp_perc == 1) %>% 
+                distinct(gp_perc,.keep_all = T),
+              size = 3) +
   stat_smooth(aes(x = gp_perc,
                   y = median),
               color = wesanderson::wes_palette("Zissou1", 100, type = "continuous")[90]) +
   labs(x = "Proportion of nodes in test data", y = "Median error (m)") +
-  theme_classic(base_size = 32) +
+  theme_classic(base_size = 16) +
   scale_y_continuous(breaks = seq(0,450, by = 50), limits = c(0,450)) +
   scale_x_reverse() 
 
@@ -394,7 +412,8 @@ ggsave("./manuscript_files/figures/fig6.jpg",
        device = "jpg",
        units = "px",
        width = 2304,
-       height = 1529)
+       height = 1529,
+       scale = 1)
 
 
 rm(list=ls())
@@ -416,11 +435,11 @@ alt_cp_time <- readr::read_csv("./manuscript_files/results/altered_calibration_p
                 formula = y ~ x,
                 method = "lm") +
     scale_x_continuous(breaks = seq(5,60, by =5)) +
-    labs(x = "Time (seconds) at test point ", 
+    labs(x = "Time (seconds) at point ", 
          y = "Detections per tag") +
     scale_color_manual(name = "Habitat score", values = wesanderson::wes_palette("Zissou1", 100, type = "continuous")[seq(1,100, length.out = 5)]) +
     theme_classic()  +
-    theme_classic(base_size = 32) )
+    theme_classic(base_size = 16) )
 
 ## Plot error by time
 (fig_rt_b <-  ggplot(alt_cp_time) +
@@ -430,23 +449,17 @@ alt_cp_time <- readr::read_csv("./manuscript_files/results/altered_calibration_p
                     color = habitat),
                 fill = grey(0.8)) +
     scale_x_continuous(breaks = seq(5,60, by =5)) +
-    labs(x = "Time (seconds) at test point ", y = "Median error (m)") +
+    labs(x = "Time (seconds) at point ", y = "Median error (m)") +
     scale_color_manual(name = "Habitat score", values = wesanderson::wes_palette("Zissou1", 100, type = "continuous")[seq(1,100, length.out = 5)]) +
-    theme_classic(base_size = 32))
+    theme_classic(base_size = 16))
 
 ggarrange(fig_rt_a,fig_rt_b, common.legend = TRUE, legend = "bottom",labels = c("A","B"))
 ggsave("./manuscript_files/figures/fig7.jpg",
        device = "jpg",
        units = "px",
        width = 2304,
-       height = 1529)
-
-ggsave("/Users/tyson/Documents/academia/institutions/WUR/presentations/BHE/Jan2024/reduced_time.jpg",
-       width = 7,
-       height = 7, 
-       dpi=500,
-       scale = 2)
-
+       height = 1529,
+       scale = 1)
 
 
 rm(list=ls())

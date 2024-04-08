@@ -8,12 +8,13 @@ library(caret)
 ## Plotting values
 color_pal <- wesanderson::wes_palette("Zissou1", 100, type = "continuous")
 
-NA_value = 150
+NA_value = -116
 
 ## Process detection data for random forests ######
 
 ## Read in detections
-dets <- readr::read_csv("./data/detections/field_cal_dets.csv")
+dets <- readr::read_csv("./manuscript_files/data/fingerprint_detections.csv") %>% 
+  rename(node = receiver)
 
 # Process for random forests
 dets_w <- dets %>%
@@ -23,7 +24,7 @@ dets_w <- dets %>%
                      values_from = "mean_RSSI",
                      names_prefix = "node_") %>%
   dplyr::filter(!(grepl("WNC", cp))) %>% 
-  dplyr::ungroup(cp) 
+  dplyr::ungroup() 
 
 ## Reformat calibration point locations
 cal_pt_location_df <- readr::read_csv("./manuscript_files/data/fingerprint_coordinates.csv")
